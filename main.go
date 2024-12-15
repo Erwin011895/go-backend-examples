@@ -9,26 +9,47 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-)
-
-// database connection
-const (
-	host     = "localhost"
-	port     = 5432
-	user     = "postgres"
-	password = "87654321"
-	dbname   = "postgres"
+	"github.com/spf13/viper"
 )
 
 var db *sql.DB
 
+type Config struct {
+	App struct {
+		Port int `mapstructure:"port"`
+	} `mapstructure:"app"`
+	Database struct {
+		Host     string `mapstructure:"host"`
+		Port     int    `mapstructure:"port"`
+		User     string `mapstructure:"user"`
+		Password string `mapstructure:"password"`
+		Dbname   string `mapstructure:"dbname"`
+		Sslmode  string `mapstructure:"sslmode"`
+	} `mapstructure:"database"`
+}
+
 func main() {
+	var c Config
+	configFile := "config.yaml"
+	viper.SetConfigFile(configFile)
+	err := viper.ReadInConfig()
+	if err != nil {
+		log.Fatalf("Error reading config file, %s", err)
+	}
+	err = viper.Unmarshal(&c)
+	if err != nil {
+		log.Fatalf("Unable to decode into struct, %v", err)
+	}
+
 	// connection string
 	psqlconn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		host, port, user, password, dbname)
+		c.Database.Host,
+		c.Database.Port,
+		c.Database.User,
+		c.Database.Password,
+		c.Database.Dbname)
 
 	// open database
-	var err error
 	db, err = sql.Open("postgres", psqlconn)
 	if err != nil {
 		panic(err)
@@ -47,9 +68,8 @@ func main() {
 	http.HandleFunc("POST /insert", insertNoteHandler)
 	http.HandleFunc("GET /select", getNotesHandler)
 
-	webport := "8081"
-	log.Println("Starting server on :" + webport)
-	if err := http.ListenAndServe(":"+webport, nil); err != nil {
+	log.Printf("Starting server on :%d", c.App.Port)
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", c.App.Port), nil); err != nil {
 		log.Fatalf("could not start server: %s\n", err)
 	}
 }
